@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zoomable Fractal Pattern</title>
+</head>
+<body>
+    <canvas id="webgl-canvas" width="500" height="500"></canvas>
+    <script>
+        const canvas = document.getElementById('webgl-canvas');
+        const gl = canvas.getContext('webgl');
+
+        if (!gl) {
+            alert('WebGL not supported in your browser.');
+        }
+
+        const vsSource = `
+            attribute vec4 aVertexPosition;
+            void main(void) {
+                gl_Position = aVertexPosition;
+            }
+        `;
+
+        const fsSource = `
+            precision mediump float;
+            uniform vec2 uResolution;
+            uniform vec2 uTranslation;
+            uniform float uScale;
+
+            void main(void) {
+                // Create a zoomable fractal pattern
+                vec2 p = (gl_FragCoord.xy - uTranslation) / uResolution * uScale;
+                float r = mod(p.x, 0.1) < 0.05 ? 1.0 : 0.0;
+                float g = mod(p.y, 0.1) < 0.05 ? 1.0 : 0.0;
+                float b = mod(p.x + p.y, 0.1) < 0.05 ? 1.0 : 0.0;
+
+                gl_FragColor = vec4(r, g, b, 1.0);
+            }
+        `;
+
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                alert('Error compiling shader: ' + gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        function createProgram(gl, vertexShader, fragmentShader) {
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                alert('Unable to initialize shader program: ' + gl.getProgramInfoLog(program));
+                return null;
+            }
+            return program;
+        }
+
+        const vertexShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
+        const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+        const program = createProgram(gl, vertexShader, fragmentShader);
+        gl.useProgram(program);
+
+        const vertexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+        const vertices = new Float32Array([
+            -1.0,  1.0,
+            -1.0, -1.0,
+             1.0,  1.0,
+             1.0, -1.0,
+        ]);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+        const position = gl.getAttribLocation(program, "aVertexPosition");
+        gl.enableVertexAttribArray(position);
+        gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+        const resolutionUniformLocation = gl.getUniformLocation(program, "uResolution");
+        const translationUniformLocation = gl.getUniformLocation(program, "uTranslation");
+        const scaleUniformLocation = gl.getUniformLocation(program, "uScale");
+
+        let translationX = 0;
+        let translationY = 0;
+        let scale = 1.0;
+
+        function render() {
+            gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
+            gl.uniform2f(translationUniformLocation, translationX, translationY);
+            gl.uniform1f(scaleUniformLocation, scale);
+
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            requestAnimationFrame(render);
+        }
+
+        canvas.addEventListener('wheel', (event) => {
+            scale *= event.deltaY > 0 ? 1.05 : 0.95;
+        });
+
+        canvas.addEventListener('mousemove', (event) => {
+            if (event.buttons === 1) {
+                translationX += event.movementX / canvas.width * scale * 2;
+                translationY -= event.movementY / canvas.height * scale * 2;
+            }
+        });
+
+        render();
+    </script>
+</body>
+</html>
